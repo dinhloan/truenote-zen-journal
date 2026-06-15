@@ -15,8 +15,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/zen" element={<ZenJournalPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/zen" element={<ZenJournalPage />} />
         <Route element={<AppLayout />}>
           <Route index element={<DailyWritingPage />} />
           <Route path="/reality" element={<RealityCheckPage />} />
