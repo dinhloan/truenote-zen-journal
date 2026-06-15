@@ -25,5 +25,7 @@ DB/data/
 *.err.log
 *.zip
 coverage
+.netlify
+FE/.netlify
 .DS_Store
 Thumbs.db
