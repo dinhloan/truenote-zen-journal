@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Merriweather", Georgia, serif;
+
+  --color-primary-fixed-dim: #b2cdbc;
+  --color-sage-green: #728C7D;
+  --color-on-primary-fixed: #072015;
+  --color-on-tertiary-fixed-variant: #5f3e3e;
+  --color-primary-fixed: #cde9d8;
+  --color-on-background: #1c1b1a;
+  --color-background: #fdf9f6;
+  --color-error-container: #ffdad6;
+  --color-surface-dim: #ddd9d6;
+  --color-secondary-container: #c6e5ea;
+  --color-inverse-on-surface: #f4f0ed;
+  --color-primary: #496154;
+  --color-on-secondary-fixed-variant: #2e4b4f;
+  --color-surface-container-high: #ebe7e4;
+  --color-surface: #fdf9f6;
+  --color-on-tertiary-container: #fffbff;
+  --color-inverse-surface: #31302f;
+  --color-on-secondary: #ffffff;
+  --color-on-error: #ffffff;
+  --color-on-surface-variant: #424844;
+  --color-secondary-fixed-dim: #adccd1;
+  --color-secondary-fixed: #c9e8ed;
+  --color-tertiary: #765353;
+  --color-surface-container-low: #f7f3f0;
+  --color-on-error-container: #93000a;
+  --color-deep-teal: #314E52;
+  --color-primary-container: #617a6c;
+  --color-surface-bright: #fdf9f6;
+  --color-error: #ba1a1a;
+  --color-on-primary-fixed-variant: #344c3f;
+  --color-outline: #727974;
+  --color-on-primary-container: #f5fff7;
+  --color-on-primary: #ffffff;
+  --color-surface-container-highest: #e5e2df;
+  --color-on-surface: #1c1b1a;
+  --color-on-tertiary-fixed: #2e1415;
+  --color-tertiary-fixed: #ffdad9;
+  --color-on-secondary-fixed: #001f23;
+  --color-tertiary-container: #916b6b;
+  --color-bone-white: #F7F3F0;
+  --color-secondary: #466367;
+  --color-inverse-primary: #b2cdbc;
+  --color-tertiary-fixed-dim: #e9bbbb;
+  --color-on-tertiary: #ffffff;
+  --color-surface-tint: #4b6456;
+  --color-on-secondary-container: #4a676c;
+  --color-surface-variant: #e5e2df;
+  --color-surface-container: #f1edea;
+  --color-outline-variant: #c2c8c2;
+  --color-paper-cream: #FCFAF9;
+  --color-stone-grey: #8E8D8A;
+  --color-surface-container-lowest: #ffffff;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(142, 141, 138, 0.3);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(114, 140, 125, 0.5);
+}
+
+/* Base custom styles to mimic Stitch exactly */
+body {
+  background-color: #fdf9f6;
+  color: #1c1b1a;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-serif-content {
+  font-family: var(--font-serif);
+}
+
+/* Fade in elements softly */
+.fade-in {
+  animation: fadeInEffect 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInEffect {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
