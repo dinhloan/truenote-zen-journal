@@ -1,127 +1,51 @@
-import { randomUUID } from "node:crypto";
-import { getDb } from "../config/database.js";
+import mongoose from "mongoose";
+import { AwarenessTrace } from "../models/AwarenessTrace.js";
+import { DailyEntry } from "../models/DailyEntry.js";
+import { RealityCheck } from "../models/RealityCheck.js";
+import { Theme } from "../models/Theme.js";
+import { Verification } from "../models/Verification.js";
 import { normalizeThemeName } from "../utils/normalize.js";
 
-function jsonParse(value, fallback = []) {
-  try {
-    return JSON.parse(value || "null") ?? fallback;
-  } catch (_error) {
-    return fallback;
-  }
+function isValidId(id) {
+  return mongoose.isValidObjectId(id);
 }
 
-function nowIso() {
-  return new Date().toISOString();
+function toClient(document) {
+  return document ? document.toClient() : null;
 }
 
-function toDailyEntry(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    date: row.date,
-    rawContent: row.raw_content,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
+function validIds(ids) {
+  return ids.filter((id) => isValidId(id));
 }
 
-function toReality(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    dailyEntryId: row.daily_entry_id,
-    facts: jsonParse(row.facts),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
+export async function findDailyEntryById(userId, id) {
+  if (!isValidId(id)) return null;
+  const entry = await DailyEntry.findOne({ _id: id, userId }).exec();
+  return toClient(entry);
 }
 
-function toVerification(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    dailyEntryId: row.daily_entry_id,
-    beliefBeingChecked: row.belief_being_checked,
-    beliefLevelBefore: row.belief_level_before,
-    supportingBasis: jsonParse(row.supporting_basis),
-    isBasisEnough: row.is_basis_enough,
-    alternativePossibilities: jsonParse(row.alternative_possibilities),
-    reasoningConclusion: row.reasoning_conclusion,
-    beliefLevelAfter: row.belief_level_after,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
+export async function findDailyEntryByDate(userId, date) {
+  const entry = await DailyEntry.findOne({ userId, date }).exec();
+  return toClient(entry);
 }
 
-function toTrace(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    dailyEntryId: row.daily_entry_id,
-    verificationId: row.verification_id,
-    awarenessStatement: row.awareness_statement,
-    reminderStatement: row.reminder_statement,
-    certaintyLevel: row.certainty_level,
-    themes: jsonParse(row.themes),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
+export async function upsertDailyEntry(userId, { date, rawContent = "", status = "writing" }) {
+  const entry = await DailyEntry.findOneAndUpdate(
+    { userId, date },
+    { $set: { rawContent, status } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).exec();
+
+  return toClient(entry);
 }
 
-function toTheme(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    name: row.name,
-    traceCount: row.trace_count,
-    relatedThemes: jsonParse(row.related_themes),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
+export async function getOrCreateDailyEntry(userId, date) {
+  const existing = await findDailyEntryByDate(userId, date);
+  return existing || upsertDailyEntry(userId, { date });
 }
 
-export function findDailyEntryById(userId, id) {
-  return toDailyEntry(getDb().prepare("SELECT * FROM daily_entries WHERE id = ? AND user_id = ?").get(id, userId));
-}
-
-export function findDailyEntryByDate(userId, date) {
-  return toDailyEntry(getDb().prepare("SELECT * FROM daily_entries WHERE user_id = ? AND date = ?").get(userId, date));
-}
-
-export function upsertDailyEntry(userId, { date, rawContent = "", status = "writing" }) {
-  const existing = findDailyEntryByDate(userId, date);
-  const timestamp = nowIso();
-
-  if (existing) {
-    getDb()
-      .prepare("UPDATE daily_entries SET raw_content = ?, status = ?, updated_at = ? WHERE id = ?")
-      .run(rawContent, status, timestamp, existing.id);
-    return findDailyEntryById(userId, existing.id);
-  }
-
-  const id = randomUUID();
-  getDb()
-    .prepare(
-      `INSERT INTO daily_entries (id, user_id, date, raw_content, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(id, userId, date, rawContent, status, timestamp, timestamp);
-
-  return findDailyEntryById(userId, id);
-}
-
-export function getOrCreateDailyEntry(userId, date) {
-  return findDailyEntryByDate(userId, date) || upsertDailyEntry(userId, { date });
-}
-
-export function updateDailyEntry(userId, id, payload) {
-  const entry = findDailyEntryById(userId, id);
+export async function updateDailyEntry(userId, id, payload) {
+  const entry = await findDailyEntryById(userId, id);
   if (!entry) return null;
 
   const next = {
@@ -130,124 +54,77 @@ export function updateDailyEntry(userId, id, payload) {
     status: payload.status ?? entry.status
   };
 
-  getDb()
-    .prepare("UPDATE daily_entries SET date = ?, raw_content = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?")
-    .run(next.date, next.rawContent, next.status, nowIso(), id, userId);
-
-  return findDailyEntryById(userId, id);
+  const updated = await DailyEntry.findOneAndUpdate({ _id: id, userId }, { $set: next }, { new: true }).exec();
+  return toClient(updated);
 }
 
-export function updateDailyStatus(userId, id, status) {
-  getDb().prepare("UPDATE daily_entries SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?").run(status, nowIso(), id, userId);
+export async function updateDailyStatus(userId, id, status) {
+  if (!isValidId(id)) return;
+  await DailyEntry.updateOne({ _id: id, userId }, { $set: { status } }).exec();
 }
 
-export function upsertReality(userId, dailyEntryId, facts) {
-  const existing = getRealityByDaily(userId, dailyEntryId);
-  const timestamp = nowIso();
-  const encodedFacts = JSON.stringify(facts);
+export async function upsertReality(userId, dailyEntryId, facts) {
+  const reality = await RealityCheck.findOneAndUpdate(
+    { userId, dailyEntryId },
+    { $set: { facts } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).exec();
 
-  if (existing) {
-    getDb().prepare("UPDATE reality_checks SET facts = ?, updated_at = ? WHERE id = ?").run(encodedFacts, timestamp, existing.id);
-    return getRealityById(userId, existing.id);
-  }
-
-  const id = randomUUID();
-  getDb()
-    .prepare(
-      `INSERT INTO reality_checks (id, user_id, daily_entry_id, facts, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(id, userId, dailyEntryId, encodedFacts, timestamp, timestamp);
-
-  return getRealityById(userId, id);
+  return toClient(reality);
 }
 
-export function getRealityByDaily(userId, dailyEntryId) {
-  return toReality(getDb().prepare("SELECT * FROM reality_checks WHERE user_id = ? AND daily_entry_id = ?").get(userId, dailyEntryId));
+export async function getRealityByDaily(userId, dailyEntryId) {
+  if (!isValidId(dailyEntryId)) return null;
+  const reality = await RealityCheck.findOne({ userId, dailyEntryId }).exec();
+  return toClient(reality);
 }
 
-export function getRealityById(userId, id) {
-  return toReality(getDb().prepare("SELECT * FROM reality_checks WHERE id = ? AND user_id = ?").get(id, userId));
+export async function getRealityById(userId, id) {
+  if (!isValidId(id)) return null;
+  const reality = await RealityCheck.findOne({ _id: id, userId }).exec();
+  return toClient(reality);
 }
 
-export function updateReality(userId, id, facts) {
-  const reality = getRealityById(userId, id);
-  if (!reality) return null;
-  getDb().prepare("UPDATE reality_checks SET facts = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(facts), nowIso(), id);
-  return getRealityById(userId, id);
+export async function updateReality(userId, id, facts) {
+  if (!isValidId(id)) return null;
+  const reality = await RealityCheck.findOneAndUpdate({ _id: id, userId }, { $set: { facts } }, { new: true }).exec();
+  return toClient(reality);
 }
 
-export function upsertVerification(userId, dailyEntryId, payload) {
-  const existing = getVerificationByDaily(userId, dailyEntryId);
-  const timestamp = nowIso();
-  const values = {
-    beliefBeingChecked: payload.beliefBeingChecked,
-    beliefLevelBefore: payload.beliefLevelBefore,
-    supportingBasis: JSON.stringify(payload.supportingBasis),
-    isBasisEnough: payload.isBasisEnough,
-    alternativePossibilities: JSON.stringify(payload.alternativePossibilities),
-    reasoningConclusion: payload.reasoningConclusion,
-    beliefLevelAfter: payload.beliefLevelAfter
-  };
+export async function upsertVerification(userId, dailyEntryId, payload) {
+  const verification = await Verification.findOneAndUpdate(
+    { userId, dailyEntryId },
+    {
+      $set: {
+        beliefBeingChecked: payload.beliefBeingChecked,
+        beliefLevelBefore: payload.beliefLevelBefore,
+        supportingBasis: payload.supportingBasis,
+        isBasisEnough: payload.isBasisEnough,
+        alternativePossibilities: payload.alternativePossibilities,
+        reasoningConclusion: payload.reasoningConclusion,
+        beliefLevelAfter: payload.beliefLevelAfter
+      }
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).exec();
 
-  if (existing) {
-    getDb()
-      .prepare(
-        `UPDATE verifications
-         SET belief_being_checked = ?, belief_level_before = ?, supporting_basis = ?, is_basis_enough = ?,
-             alternative_possibilities = ?, reasoning_conclusion = ?, belief_level_after = ?, updated_at = ?
-         WHERE id = ?`
-      )
-      .run(
-        values.beliefBeingChecked,
-        values.beliefLevelBefore,
-        values.supportingBasis,
-        values.isBasisEnough,
-        values.alternativePossibilities,
-        values.reasoningConclusion,
-        values.beliefLevelAfter,
-        timestamp,
-        existing.id
-      );
-    return getVerificationById(userId, existing.id);
-  }
-
-  const id = randomUUID();
-  getDb()
-    .prepare(
-      `INSERT INTO verifications (
-        id, user_id, daily_entry_id, belief_being_checked, belief_level_before, supporting_basis,
-        is_basis_enough, alternative_possibilities, reasoning_conclusion, belief_level_after, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      id,
-      userId,
-      dailyEntryId,
-      values.beliefBeingChecked,
-      values.beliefLevelBefore,
-      values.supportingBasis,
-      values.isBasisEnough,
-      values.alternativePossibilities,
-      values.reasoningConclusion,
-      values.beliefLevelAfter,
-      timestamp,
-      timestamp
-    );
-
-  return getVerificationById(userId, id);
+  return toClient(verification);
 }
 
-export function getVerificationByDaily(userId, dailyEntryId) {
-  return toVerification(getDb().prepare("SELECT * FROM verifications WHERE user_id = ? AND daily_entry_id = ?").get(userId, dailyEntryId));
+export async function getVerificationByDaily(userId, dailyEntryId) {
+  if (!isValidId(dailyEntryId)) return null;
+  const verification = await Verification.findOne({ userId, dailyEntryId }).exec();
+  return toClient(verification);
 }
 
-export function getVerificationById(userId, id) {
-  return toVerification(getDb().prepare("SELECT * FROM verifications WHERE id = ? AND user_id = ?").get(id, userId));
+export async function getVerificationById(userId, id) {
+  if (!isValidId(id)) return null;
+  const verification = await Verification.findOne({ _id: id, userId }).exec();
+  return toClient(verification);
 }
 
-export function updateVerification(userId, id, payload) {
-  const current = getVerificationById(userId, id);
+export async function updateVerification(userId, id, payload) {
+  const current = await getVerificationById(userId, id);
   if (!current) return null;
 
   return upsertVerification(userId, current.dailyEntryId, {
@@ -261,123 +138,98 @@ export function updateVerification(userId, id, payload) {
   });
 }
 
-export function upsertAwarenessTrace(userId, dailyEntryId, payload) {
-  const existing = getTraceByDaily(userId, dailyEntryId);
-  const timestamp = nowIso();
-  const themes = JSON.stringify(payload.themes);
+export async function upsertAwarenessTrace(userId, dailyEntryId, payload) {
+  const trace = await AwarenessTrace.findOneAndUpdate(
+    { userId, dailyEntryId },
+    {
+      $set: {
+        verificationId: payload.verificationId,
+        awarenessStatement: payload.awarenessStatement,
+        reminderStatement: payload.reminderStatement,
+        certaintyLevel: payload.certaintyLevel,
+        themes: payload.themes
+      }
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).exec();
 
-  if (existing) {
-    getDb()
-      .prepare(
-        `UPDATE awareness_traces
-         SET verification_id = ?, awareness_statement = ?, reminder_statement = ?, certainty_level = ?, themes = ?, updated_at = ?
-         WHERE id = ?`
-      )
-      .run(payload.verificationId, payload.awarenessStatement, payload.reminderStatement, payload.certaintyLevel, themes, timestamp, existing.id);
-    return getTraceById(userId, existing.id);
-  }
-
-  const id = randomUUID();
-  getDb()
-    .prepare(
-      `INSERT INTO awareness_traces (
-        id, user_id, daily_entry_id, verification_id, awareness_statement, reminder_statement,
-        certainty_level, themes, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      id,
-      userId,
-      dailyEntryId,
-      payload.verificationId,
-      payload.awarenessStatement,
-      payload.reminderStatement,
-      payload.certaintyLevel,
-      themes,
-      timestamp,
-      timestamp
-    );
-
-  return getTraceById(userId, id);
+  return toClient(trace);
 }
 
-export function getTraceByDaily(userId, dailyEntryId) {
-  return toTrace(getDb().prepare("SELECT * FROM awareness_traces WHERE user_id = ? AND daily_entry_id = ?").get(userId, dailyEntryId));
+export async function getTraceByDaily(userId, dailyEntryId) {
+  if (!isValidId(dailyEntryId)) return null;
+  const trace = await AwarenessTrace.findOne({ userId, dailyEntryId }).exec();
+  return toClient(trace);
 }
 
-export function getTraceById(userId, id) {
-  return toTrace(getDb().prepare("SELECT * FROM awareness_traces WHERE id = ? AND user_id = ?").get(id, userId));
+export async function getTraceById(userId, id) {
+  if (!isValidId(id)) return null;
+  const trace = await AwarenessTrace.findOne({ _id: id, userId }).exec();
+  return toClient(trace);
 }
 
-export function getTraces(userId, order = "DESC") {
-  const direction = order === "ASC" ? "ASC" : "DESC";
-  return getDb()
-    .prepare(`SELECT * FROM awareness_traces WHERE user_id = ? ORDER BY created_at ${direction}`)
-    .all(userId)
-    .map(toTrace);
+export async function getTraces(userId, order = "DESC") {
+  const direction = order === "ASC" ? 1 : -1;
+  const traces = await AwarenessTrace.find({ userId }).sort({ createdAt: direction }).exec();
+  return traces.map(toClient);
 }
 
-export function syncThemesForUser(userId) {
+export async function syncThemesForUser(userId) {
   const counts = new Map();
-  for (const trace of getTraces(userId, "ASC")) {
+  const traces = await getTraces(userId, "ASC");
+
+  for (const trace of traces) {
     for (const theme of trace.themes) {
       const name = normalizeThemeName(theme);
       if (name) counts.set(name, (counts.get(name) || 0) + 1);
     }
   }
 
-  const db = getDb();
-  const timestamp = nowIso();
-
   if (counts.size === 0) {
-    db.prepare("DELETE FROM themes WHERE user_id = ?").run(userId);
+    await Theme.deleteMany({ userId }).exec();
     return;
   }
 
   const names = [...counts.keys()];
-  const placeholders = names.map(() => "?").join(", ");
-  db.prepare(`DELETE FROM themes WHERE user_id = ? AND name NOT IN (${placeholders})`).run(userId, ...names);
+  await Theme.deleteMany({ userId, name: { $nin: names } }).exec();
 
-  const upsert = db.prepare(
-    `INSERT INTO themes (id, user_id, name, trace_count, related_themes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, '[]', ?, ?)
-     ON CONFLICT(user_id, name) DO UPDATE SET trace_count = excluded.trace_count, updated_at = excluded.updated_at`
+  await Promise.all(
+    [...counts.entries()].map(([name, traceCount]) =>
+      Theme.findOneAndUpdate(
+        { userId, name },
+        { $set: { traceCount }, $setOnInsert: { relatedThemes: [] } },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      ).exec()
+    )
   );
-
-  for (const [name, traceCount] of counts.entries()) {
-    upsert.run(randomUUID(), userId, name, traceCount, timestamp, timestamp);
-  }
 }
 
-export function getThemes(userId) {
-  return getDb()
-    .prepare("SELECT * FROM themes WHERE user_id = ? ORDER BY trace_count DESC, name ASC")
-    .all(userId)
-    .map(toTheme);
+export async function getThemes(userId) {
+  const themes = await Theme.find({ userId }).sort({ traceCount: -1, name: 1 }).exec();
+  return themes.map(toClient);
 }
 
-export function getThemeById(userId, id) {
-  return toTheme(getDb().prepare("SELECT * FROM themes WHERE id = ? AND user_id = ?").get(id, userId));
+export async function getThemeById(userId, id) {
+  if (!isValidId(id)) return null;
+  const theme = await Theme.findOne({ _id: id, userId }).exec();
+  return toClient(theme);
 }
 
-export function getDailyEntriesByIds(ids) {
-  if (!ids.length) return [];
-  const placeholders = ids.map(() => "?").join(", ");
-  return getDb()
-    .prepare(`SELECT * FROM daily_entries WHERE id IN (${placeholders})`)
-    .all(...ids)
-    .map(toDailyEntry);
+export async function getDailyEntriesByIds(ids) {
+  const filtered = validIds(ids);
+  if (!filtered.length) return [];
+  const entries = await DailyEntry.find({ _id: { $in: filtered } }).exec();
+  return entries.map(toClient);
 }
 
-export function getVerificationsByIds(userId, ids) {
-  if (!ids.length) return [];
-  const placeholders = ids.map(() => "?").join(", ");
-  return getDb()
-    .prepare(`SELECT * FROM verifications WHERE user_id = ? AND id IN (${placeholders})`)
-    .all(userId, ...ids)
-    .map(toVerification);
+export async function getVerificationsByIds(userId, ids) {
+  const filtered = validIds(ids);
+  if (!filtered.length) return [];
+  const verifications = await Verification.find({ userId, _id: { $in: filtered } }).exec();
+  return verifications.map(toClient);
 }
 
-export function getTracesByTheme(userId, themeName) {
-  return getTraces(userId, "ASC").filter((trace) => trace.themes.includes(themeName));
+export async function getTracesByTheme(userId, themeName) {
+  const traces = await AwarenessTrace.find({ userId, themes: themeName }).sort({ createdAt: 1 }).exec();
+  return traces.map(toClient);
 }

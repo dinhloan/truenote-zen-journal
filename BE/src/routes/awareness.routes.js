@@ -36,10 +36,10 @@ const updateVerificationSchema = z
   })
   .partial();
 
-router.put("/reality/:id", (req, res, next) => {
+router.put("/reality/:id", async (req, res, next) => {
   try {
     const payload = updateRealitySchema.parse(req.body);
-    const reality = updateReality(req.user.id, req.params.id, uniqueCleanStrings(payload.facts));
+    const reality = await updateReality(req.user.id, req.params.id, uniqueCleanStrings(payload.facts));
 
     if (!reality) {
       return next({ status: 404, message: "Reality check not found" });
@@ -51,10 +51,10 @@ router.put("/reality/:id", (req, res, next) => {
   }
 });
 
-router.put("/verification/:id", (req, res, next) => {
+router.put("/verification/:id", async (req, res, next) => {
   try {
     const payload = updateVerificationSchema.parse(req.body);
-    const verification = updateVerification(req.user.id, req.params.id, {
+    const verification = await updateVerification(req.user.id, req.params.id, {
       ...payload,
       supportingBasis: payload.supportingBasis ? uniqueCleanStrings(payload.supportingBasis) : undefined,
       alternativePossibilities: payload.alternativePossibilities ? uniqueCleanStrings(payload.alternativePossibilities) : undefined
@@ -70,25 +70,25 @@ router.put("/verification/:id", (req, res, next) => {
   }
 });
 
-router.get("/awareness-traces", (req, res, next) => {
+router.get("/awareness-traces", async (req, res, next) => {
   try {
-    res.json({ awarenessTraces: getTraces(req.user.id) });
+    res.json({ awarenessTraces: await getTraces(req.user.id) });
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/awareness-traces/:id", (req, res, next) => {
+router.get("/awareness-traces/:id", async (req, res, next) => {
   try {
-    const trace = getTraceById(req.user.id, req.params.id);
+    const trace = await getTraceById(req.user.id, req.params.id);
 
     if (!trace) {
       return next({ status: 404, message: "Awareness trace not found" });
     }
 
-    const dailyEntry = getDailyEntriesByIds([trace.dailyEntryId])[0] || null;
-    const realityCheck = getRealityByDaily(req.user.id, trace.dailyEntryId);
-    const verification = getVerificationById(req.user.id, trace.verificationId);
+    const dailyEntry = (await getDailyEntriesByIds([trace.dailyEntryId]))[0] || null;
+    const realityCheck = await getRealityByDaily(req.user.id, trace.dailyEntryId);
+    const verification = await getVerificationById(req.user.id, trace.verificationId);
 
     res.json({
       awarenessTrace: trace,
@@ -101,25 +101,25 @@ router.get("/awareness-traces/:id", (req, res, next) => {
   }
 });
 
-router.get("/themes", (req, res, next) => {
+router.get("/themes", async (req, res, next) => {
   try {
-    res.json({ themes: getThemes(req.user.id) });
+    res.json({ themes: await getThemes(req.user.id) });
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/themes/:themeId", (req, res, next) => {
+router.get("/themes/:themeId", async (req, res, next) => {
   try {
-    const theme = getThemeById(req.user.id, req.params.themeId);
+    const theme = await getThemeById(req.user.id, req.params.themeId);
 
     if (!theme) {
       return next({ status: 404, message: "Theme not found" });
     }
 
-    const traces = getTracesByTheme(req.user.id, theme.name);
-    const dailyEntries = getDailyEntriesByIds(traces.map((trace) => trace.dailyEntryId));
-    const verifications = getVerificationsByIds(
+    const traces = await getTracesByTheme(req.user.id, theme.name);
+    const dailyEntries = await getDailyEntriesByIds(traces.map((trace) => trace.dailyEntryId));
+    const verifications = await getVerificationsByIds(
       req.user.id,
       traces.map((trace) => trace.verificationId)
     );
@@ -135,11 +135,11 @@ router.get("/themes/:themeId", (req, res, next) => {
   }
 });
 
-router.get("/awareness-map", (req, res, next) => {
+router.get("/awareness-map", async (req, res, next) => {
   try {
     res.json({
-      themes: getThemes(req.user.id),
-      timeline: getTraces(req.user.id, "ASC")
+      themes: await getThemes(req.user.id),
+      timeline: await getTraces(req.user.id, "ASC")
     });
   } catch (error) {
     next(error);

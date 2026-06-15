@@ -11,7 +11,7 @@ export async function requireAuth(req, _res, next) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET || "test-secret");
-    const user = findUserById(payload.sub);
+    const user = await findUserById(payload.sub);
 
     if (!user) {
       return next({ status: 401, message: "User no longer exists" });

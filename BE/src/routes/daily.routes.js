@@ -52,22 +52,22 @@ const traceSchema = z.object({
   themes: z.array(z.string().trim().min(1).max(120)).max(12).default([])
 });
 
-router.get("/today", (req, res, next) => {
+router.get("/today", async (req, res, next) => {
   try {
-    const entry = getOrCreateDailyEntry(req.user.id, todayIsoDate());
+    const entry = await getOrCreateDailyEntry(req.user.id, todayIsoDate());
     res.json({ dailyEntry: entry });
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/:date", (req, res, next) => {
+router.get("/:date", async (req, res, next) => {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.date)) {
       return next({ status: 400, message: "Date must be in YYYY-MM-DD format" });
     }
 
-    const entry = findDailyEntryByDate(req.user.id, req.params.date);
+    const entry = await findDailyEntryByDate(req.user.id, req.params.date);
 
     if (!entry) {
       return next({ status: 404, message: "Daily entry not found" });
@@ -79,10 +79,10 @@ router.get("/:date", (req, res, next) => {
   }
 });
 
-router.post("/", (req, res, next) => {
+router.post("/", async (req, res, next) => {
   try {
     const payload = dailySchema.parse(req.body);
-    const entry = upsertDailyEntry(req.user.id, {
+    const entry = await upsertDailyEntry(req.user.id, {
       date: payload.date || todayIsoDate(),
       rawContent: payload.rawContent,
       status: payload.status
@@ -94,10 +94,10 @@ router.post("/", (req, res, next) => {
   }
 });
 
-router.put("/:id", (req, res, next) => {
+router.put("/:id", async (req, res, next) => {
   try {
     const payload = updateDailySchema.parse(req.body);
-    const entry = updateDailyEntry(req.user.id, req.params.id, payload);
+    const entry = await updateDailyEntry(req.user.id, req.params.id, payload);
 
     if (!entry) {
       return next({ status: 404, message: "Daily entry not found" });
@@ -109,15 +109,15 @@ router.put("/:id", (req, res, next) => {
   }
 });
 
-router.post("/:id/reality", (req, res, next) => {
+router.post("/:id/reality", async (req, res, next) => {
   try {
-    const entry = findDailyEntryById(req.user.id, req.params.id);
+    const entry = await findDailyEntryById(req.user.id, req.params.id);
     if (!entry) return next({ status: 404, message: "Daily entry not found" });
 
     const payload = realitySchema.parse(req.body);
-    const reality = upsertReality(req.user.id, entry.id, uniqueCleanStrings(payload.facts));
+    const reality = await upsertReality(req.user.id, entry.id, uniqueCleanStrings(payload.facts));
 
-    updateDailyStatus(req.user.id, entry.id, "checking");
+    await updateDailyStatus(req.user.id, entry.id, "checking");
 
     res.status(201).json({ realityCheck: reality });
   } catch (error) {
@@ -125,12 +125,12 @@ router.post("/:id/reality", (req, res, next) => {
   }
 });
 
-router.get("/:id/reality", (req, res, next) => {
+router.get("/:id/reality", async (req, res, next) => {
   try {
-    const entry = findDailyEntryById(req.user.id, req.params.id);
+    const entry = await findDailyEntryById(req.user.id, req.params.id);
     if (!entry) return next({ status: 404, message: "Daily entry not found" });
 
-    const reality = getRealityByDaily(req.user.id, entry.id);
+    const reality = await getRealityByDaily(req.user.id, entry.id);
     if (!reality) return next({ status: 404, message: "Reality check not found" });
 
     res.json({ realityCheck: reality });
@@ -139,19 +139,19 @@ router.get("/:id/reality", (req, res, next) => {
   }
 });
 
-router.post("/:id/verification", (req, res, next) => {
+router.post("/:id/verification", async (req, res, next) => {
   try {
-    const entry = findDailyEntryById(req.user.id, req.params.id);
+    const entry = await findDailyEntryById(req.user.id, req.params.id);
     if (!entry) return next({ status: 404, message: "Daily entry not found" });
 
     const payload = verificationSchema.parse(req.body);
-    const verification = upsertVerification(req.user.id, entry.id, {
+    const verification = await upsertVerification(req.user.id, entry.id, {
       ...payload,
       supportingBasis: uniqueCleanStrings(payload.supportingBasis),
       alternativePossibilities: uniqueCleanStrings(payload.alternativePossibilities)
     });
 
-    updateDailyStatus(req.user.id, entry.id, "checking");
+    await updateDailyStatus(req.user.id, entry.id, "checking");
 
     res.status(201).json({ verification });
   } catch (error) {
@@ -159,12 +159,12 @@ router.post("/:id/verification", (req, res, next) => {
   }
 });
 
-router.get("/:id/verification", (req, res, next) => {
+router.get("/:id/verification", async (req, res, next) => {
   try {
-    const entry = findDailyEntryById(req.user.id, req.params.id);
+    const entry = await findDailyEntryById(req.user.id, req.params.id);
     if (!entry) return next({ status: 404, message: "Daily entry not found" });
 
-    const verification = getVerificationByDaily(req.user.id, entry.id);
+    const verification = await getVerificationByDaily(req.user.id, entry.id);
     if (!verification) return next({ status: 404, message: "Verification not found" });
 
     res.json({ verification });
@@ -173,19 +173,19 @@ router.get("/:id/verification", (req, res, next) => {
   }
 });
 
-router.post("/:id/awareness-trace", (req, res, next) => {
+router.post("/:id/awareness-trace", async (req, res, next) => {
   try {
-    const entry = findDailyEntryById(req.user.id, req.params.id);
+    const entry = await findDailyEntryById(req.user.id, req.params.id);
     if (!entry) return next({ status: 404, message: "Daily entry not found" });
 
     const payload = traceSchema.parse(req.body);
-    const verification = getVerificationById(req.user.id, payload.verificationId);
+    const verification = await getVerificationById(req.user.id, payload.verificationId);
 
     if (!verification || verification.dailyEntryId !== entry.id) {
       return next({ status: 400, message: "A matching verification is required before saving a trace" });
     }
 
-    const trace = upsertAwarenessTrace(req.user.id, entry.id, {
+    const trace = await upsertAwarenessTrace(req.user.id, entry.id, {
       verificationId: verification.id,
       awarenessStatement: payload.awarenessStatement,
       reminderStatement: payload.reminderStatement,
@@ -193,8 +193,8 @@ router.post("/:id/awareness-trace", (req, res, next) => {
       themes: uniqueCleanStrings(payload.themes).map(normalizeThemeName)
     });
 
-    updateDailyStatus(req.user.id, entry.id, "completed");
-    syncThemesForUser(req.user.id);
+    await updateDailyStatus(req.user.id, entry.id, "completed");
+    await syncThemesForUser(req.user.id);
 
     res.status(201).json({ awarenessTrace: trace });
   } catch (error) {

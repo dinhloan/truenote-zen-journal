@@ -21,14 +21,14 @@ const loginSchema = z.object({
 router.post("/register", async (req, res, next) => {
   try {
     const payload = registerSchema.parse(req.body);
-    const existing = findUserByEmail(payload.email);
+    const existing = await findUserByEmail(payload.email);
 
     if (existing) {
       return next({ status: 409, message: "Email is already registered" });
     }
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
-    const user = createUser({ name: payload.name, email: payload.email, passwordHash });
+    const user = await createUser({ name: payload.name, email: payload.email, passwordHash });
 
     res.status(201).json({
       token: signAuthToken(user),
@@ -42,7 +42,7 @@ router.post("/register", async (req, res, next) => {
 router.post("/login", async (req, res, next) => {
   try {
     const payload = loginSchema.parse(req.body);
-    const user = findUserByEmail(payload.email);
+    const user = await findUserByEmail(payload.email);
 
     if (!user || !(await bcrypt.compare(payload.password, user.passwordHash))) {
       return next({ status: 401, message: "Email or password is incorrect" });
