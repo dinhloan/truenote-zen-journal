@@ -6,6 +6,6 @@ const port = process.env.PORT || 4000;
 
 connectDatabase();
 
-createApp().listen(port, () => {
+createApp().listen(port, "0.0.0.0", () => {
   console.log(`TrueNote API listening on http://localhost:${port}`);
 });
