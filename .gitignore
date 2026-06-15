@@ -27,5 +27,6 @@ DB/data/
 coverage
 .netlify
 FE/.netlify
+.render-inspect
 .DS_Store
 Thumbs.db
